@@ -2,9 +2,7 @@ module.exports = express => {
 
     const fs = require('fs-extra'),
         path = require('path'),
-        settings = require('./../lib/settings'),
-        { pipeline } = require('stream/promises')
-
+        settings = require('./../lib/settings')
 /*
 
 bucket: 
@@ -119,23 +117,26 @@ bucket:
                 } else
                     throw ex
             }
-
             
-            //req.pipe(fs.createWriteStream(storePath, {flags:'a'})) 
-            //res.end('file written')
+            // Using pipe with error handling 
+            const writeStream = fs.createWriteStream(storePath, { flags: "a" });
             
-            // Use pipeline instead of .pipe() for error handling
-            // and automatic stream cleanup on failure
-            try {
-                await pipeline(
-                    req,
-                    fs.createWriteStream(storePath, { flags: "a" }),
-                );
+            writeStream.on("finish", () => {
                 res.end("file written");
-            } catch (err) {
+            });
+            
+            writeStream.on("error", (err) => {
                 console.error(err);
                 res.status(500).end(err.message);
-            }
+            });
+            
+            req.on("error", (err) => {
+                console.error(err);
+                writeStream.destroy();
+                res.status(500).end(err.message);
+            });
+            
+            req.pipe(writeStream);
 
         } catch(ex){
             res.end(JSON.stringify(ex))
